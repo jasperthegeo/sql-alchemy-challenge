@@ -38,14 +38,8 @@ class PrecipitationAnalysis(Resource):
     def get(self):
         #this is the first and last date
         day_one = session.query(measurement.date).order_by(measurement.date).first()
-        #day_one
         last_day_str = session.query(measurement.date).order_by(measurement.date.desc()).first()
-        #last_day
-        #one year from last date...
-        #since the date is a string, we need to use the strptime function
         last_date = dt.datetime.strptime(*last_day_str, '%Y-%m-%d')
-        #last_date
-
         ein_jahr = last_date - dt.timedelta(days=365)
         ein_jahr_str = dt.datetime.strftime(ein_jahr,'%Y-%m-%d')
         ein_jahr_frag = session.query(measurement.date, measurement.prcp)\
@@ -54,8 +48,6 @@ class PrecipitationAnalysis(Resource):
                         .order_by(measurement.date).all()
 
         ein_jahr_df = pd.DataFrame(ein_jahr_frag, columns =['date', 'prcp'])
-        #ein_jahr_df.head()
-        # ein_jahr_df['date'] = pd.to_datetime(ein_jahr_df['date']) ##is this needed?
 
         ein_jahr_df.set_index('date', inplace=True)
         ein_jahr_df.groupby(['date']).sum()
@@ -66,14 +58,6 @@ class PrecipitationAnalysis(Resource):
         print(resp)
         return resp
 
-    # def put(self):
-    #     # do put something
-
-    # def delete(self):
-    #     # do delete something
-
-    # def post(self):
-    #     # do post something
 
 class Stations(Resource):
     def get(self):
@@ -90,6 +74,40 @@ class Stations(Resource):
 class TemperatureObservations(Resource):
     def get(self):
         resp = {}
+
+        act_stxn_select = [measurement.station, func.count(measurement.station), station.name]
+
+        act_stxn = session.query(*act_stxn_select).filter(station.station == measurement.station)\
+                        .group_by(measurement.station).order_by(func.count(measurement.station)\
+                        .desc()).all()
+
+        most_act_stxn = act_stxn[0][0]
+
+        act_stxn = session.query(*act_stxn_select).filter(station.station == most_act_stxn)\
+                        .group_by(measurement.station).order_by(func.count(measurement.station)\
+                        .desc()).all()
+
+        day_one = session.query(measurement.date).order_by(measurement.date).first()
+        last_day_str = session.query(measurement.date).order_by(measurement.date.desc()).first()
+        #last_day
+        #one year from last date...
+        #since the date is a string, we need to use the strptime function
+        last_date = dt.datetime.strptime(*last_day_str, '%Y-%m-%d')
+        #last_date
+
+        ein_jahr = last_date - dt.timedelta(days=365)
+        ein_jahr_str = dt.datetime.strftime(ein_jahr,'%Y-%m-%d')
+        ein_jahr_frag = session.query(measurement.date, measurement.tobs)\
+                        .filter(measurement.date >= ein_jahr_str)\
+                        .filter(measurement.station == most_act_stxn)\
+                        .order_by(measurement.date).all()
+
+        ein_jahr_df = pd.DataFrame(ein_jahr_frag, columns =['date', 'tobs'])
+
+        ein_jahr_df.set_index('date', inplace=True)
+        ein_jahr_dict = ein_jahr_df.to_dict()
+
+        resp = jsonify(ein_jahr_dict)
         resp.status_code = 200
         print(resp)
         return resp
@@ -97,6 +115,13 @@ class TemperatureObservations(Resource):
 class TemperaturesDate(Resource):
     def get(self, start):
         resp = {}
+
+        min_temp = session.query(measurement.date, func.min(measurement.tobs), func.max(measurement.tobs), func.avg(measurement.tobs))\
+            .filter(measurement.date == start).all()
+                
+        min_df = pd.DataFrame(min_temp, columns =['date', 'min', 'max', 'avg'])
+        min_df.set_index('date', inplace=True)
+        resp = jsonify(min_df.to_dict())
         resp.status_code = 200
         print(resp)
         return resp
@@ -104,6 +129,14 @@ class TemperaturesDate(Resource):
 class TemperaturesRange(Resource):
     def get(self, start, end):
         resp = {}
+
+        min_temp = session.query(measurement.date, func.min(measurement.tobs), func.max(measurement.tobs), func.avg(measurement.tobs))\
+            .filter(measurement.date >= start)\
+            .filter(measurement.date <= end).all()
+                
+        min_df = pd.DataFrame(min_temp, columns =['date', 'min', 'max', 'avg'])
+        min_df.set_index('date', inplace=True)
+        resp = jsonify(min_df.to_dict())
         resp.status_code = 200
         print(resp)
         return resp
